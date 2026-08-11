@@ -1,0 +1,1 @@
+module.exports = { default: global.__ASYNC_STORAGE_MOCK__ };
