@@ -10,11 +10,11 @@ const LOCAL_HOST = '10.253.88.201';
 const LOCAL_PORT = 4000; // matches backend/.env's PORT
 
 // PRODUCTION: once the backend is deployed (e.g. to Render/Railway), put its URL here.
-const PRODUCTION_URL = ''; // e.g. 'https://campuspulse-backend.onrender.com'
+const PRODUCTION_URL = 'https://campuspulse-2wwh.onrender.com';
 
 // Flip this to true once PRODUCTION_URL is set, to point the app at the deployed backend
 // instead of your local dev machine.
-const USE_PRODUCTION = false;
+const USE_PRODUCTION = true;
 // ---------------------------------------------------------------------------------------------
 
 const BASE = USE_PRODUCTION && PRODUCTION_URL ? PRODUCTION_URL : `http://${LOCAL_HOST}:${LOCAL_PORT}`;

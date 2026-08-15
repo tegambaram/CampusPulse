@@ -6,6 +6,11 @@ const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
+// College email allowlist: only this domain may register or sign in with Google.
+// Overridable via env for other campuses without a code change.
+const ALLOWED_EMAIL_DOMAIN = (process.env.ALLOWED_EMAIL_DOMAIN || 'citchennai.net').toLowerCase();
+const isAllowedEmail = (email) => email.toLowerCase().endsWith(`@${ALLOWED_EMAIL_DOMAIN}`);
+
 router.post('/register', async (req, res) => {
   const { name, collegeEmail, department, semester, password, confirmPassword } = req.body;
   if (!name || !collegeEmail || !department || !semester || !password) {
@@ -16,6 +21,10 @@ router.post('/register', async (req, res) => {
   }
 
   const email = collegeEmail.trim().toLowerCase();
+  if (!isAllowedEmail(email)) {
+    return res.status(400).json({ message: `Only @${ALLOWED_EMAIL_DOMAIN} college email addresses can register.` });
+  }
+
   const existing = await User.findOne({ collegeEmail: email });
   if (existing) {
     return res.status(400).json({ message: 'An account with this email already exists. Try logging in instead.' });
@@ -60,6 +69,9 @@ router.post('/forgot-password', async (req, res) => {
 router.post('/google-login', async (req, res) => {
   const { email, name, avatar } = req.body;
   const normalizedEmail = (email || '').trim().toLowerCase();
+  if (!isAllowedEmail(normalizedEmail)) {
+    return res.status(400).json({ message: `Only @${ALLOWED_EMAIL_DOMAIN} college email addresses can sign in.` });
+  }
   let user = await User.findOne({ collegeEmail: normalizedEmail });
   if (!user) {
     user = await User.create({
