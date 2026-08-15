@@ -4,6 +4,7 @@ const Message = require('../models/Message');
 const User = require('../models/User');
 const { requireAuth } = require('../middleware/auth');
 const { notifyUser } = require('../utils/notify');
+const { isBlockedEitherWay } = require('../utils/blocking');
 
 const router = express.Router();
 
@@ -31,6 +32,9 @@ router.post('/', requireAuth, async (req, res) => {
   const myId = req.userId;
   const { userId } = req.body;
   if (userId === myId) return res.status(400).json({ message: "You can't start a conversation with yourself." });
+  if (await isBlockedEitherWay(myId, userId)) {
+    return res.status(403).json({ message: "You can't message this user." });
+  }
 
   let conversation = await Conversation.findOne({ participants: { $all: [myId, userId], $size: 2 } }).populate('participants');
   if (!conversation) {
@@ -53,9 +57,12 @@ router.post('/:id/messages', requireAuth, async (req, res) => {
   const conversation = await Conversation.findById(req.params.id);
   if (!conversation) return res.status(404).json({ message: 'This conversation no longer exists.' });
 
-  const message = await Message.create({ conversation: conversation._id, sender: myId, text });
-
   const otherId = conversation.participants.find((p) => p.toString() !== myId)?.toString();
+  if (otherId && (await isBlockedEitherWay(myId, otherId))) {
+    return res.status(403).json({ message: "You can't message this user." });
+  }
+
+  const message = await Message.create({ conversation: conversation._id, sender: myId, text });
   conversation.lastMessage = text;
   conversation.lastMessageAt = message.createdAt;
   if (otherId) conversation.unreadCount.set(otherId, (conversation.unreadCount.get(otherId) || 0) + 1);

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import authService from '../services/authService';
+import userService from '../services/userService';
 import { disconnectSocket } from '../utils/socketClient';
 import { registerForPushNotificationsAsync } from '../utils/pushToken';
 
@@ -16,7 +17,20 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(null);
   const [isGuest, setIsGuest] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [blockedUserIds, setBlockedUserIds] = useState([]);
   const bootstrapped = useRef(false);
+
+  // Refetches the current user's block list; called after login/register/bootstrap and
+  // again by any screen right after it calls userService.toggleBlock, so Block/Unblock
+  // labels stay in sync without every screen managing its own copy of this list.
+  const refreshBlockedUsers = async () => {
+    try {
+      const blocked = await userService.getBlockedUsers();
+      setBlockedUserIds(blocked.map((u) => u._id || u.id));
+    } catch (error) {
+      // not fatal — screens just fall back to showing "Block" instead of "Unblock"
+    }
+  };
 
   // Best-effort: ask for notification permission and hand the backend a device push token
   // so it can reach this user even when the app is backgrounded/closed. Never blocks login.
@@ -33,12 +47,14 @@ export function AuthProvider({ children }) {
     setUser(normalized);
     setIsGuest(false);
     syncPushToken();
+    refreshBlockedUsers();
   };
 
   const clearSession = async () => {
     await AsyncStorage.multiRemove(['token', 'user']);
     setToken(null);
     setUser(null);
+    setBlockedUserIds([]);
     disconnectSocket();
   };
 
@@ -59,6 +75,7 @@ export function AuthProvider({ children }) {
             const freshUser = await authService.getMe();
             setUser(normalizeUser(freshUser));
             syncPushToken();
+            refreshBlockedUsers();
           } catch (error) {
             await clearSession();
           }
@@ -119,6 +136,8 @@ export function AuthProvider({ children }) {
         isGuest,
         isLoading,
         isAuthenticated: Boolean(token),
+        blockedUserIds,
+        refreshBlockedUsers,
         login,
         register,
         googleLogin,

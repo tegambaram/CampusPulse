@@ -17,6 +17,10 @@ const userSchema = new mongoose.Schema(
     // Expo push token for this user's device, used to deliver notifications when the app
     // is backgrounded/closed. Registered by the client after login via POST /api/auth/push-token.
     expoPushToken: { type: String, default: null },
+    // Users this account has blocked. Blocking is one-directional but enforced both ways
+    // when checking whether two users can message each other (see routes/conversations.js
+    // and sockets/index.js's isBlockedEitherWay checks).
+    blockedUsers: { type: [mongoose.Schema.Types.ObjectId], ref: 'User', default: [] },
   },
   { timestamps: true }
 );
@@ -26,6 +30,7 @@ userSchema.methods.toPublicJSON = function toPublicJSON() {
   obj._id = obj._id.toString();
   delete obj.password;
   delete obj.expoPushToken;
+  delete obj.blockedUsers;
   delete obj.__v;
   return obj;
 };

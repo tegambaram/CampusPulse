@@ -4,6 +4,7 @@ const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
 const User = require('../models/User');
 const { notifyUser } = require('../utils/notify');
+const { isBlockedEitherWay } = require('../utils/blocking');
 
 // Event names/payloads here are dictated by the frontend (context/AuthContext.js,
 // utils/socketClient.js, hooks/useSocket.js, screens/ChatScreen.js, MessagesScreen.js,
@@ -71,8 +72,13 @@ const attachSocket = (httpServer, corsOrigin) => {
         const conversation = await Conversation.findById(conversationId);
         if (!conversation || !conversation.participants.some((p) => p.toString() === userId)) return;
 
-        const message = await Message.create({ conversation: conversationId, sender: userId, text });
         const otherId = conversation.participants.find((p) => p.toString() !== userId)?.toString();
+        if (otherId && (await isBlockedEitherWay(userId, otherId))) {
+          socket.emit('send_message_error', { conversationId, message: "You can't message this user." });
+          return;
+        }
+
+        const message = await Message.create({ conversation: conversationId, sender: userId, text });
 
         conversation.lastMessage = text;
         conversation.lastMessageAt = message.createdAt;

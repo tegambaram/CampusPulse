@@ -7,12 +7,14 @@ import RatingStars from '../components/RatingStars';
 import AvatarWithStatus from '../components/AvatarWithStatus';
 import CustomButton from '../components/CustomButton';
 import EmptyState from '../components/EmptyState';
+import ReportModal from '../components/ReportModal';
 import { FONT, SPACING, RADIUS, SHADOW } from '../constants/theme';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import postService from '../services/postService';
 import bookingService from '../services/bookingService';
 import conversationService from '../services/conversationService';
+import userService from '../services/userService';
 import { mapPost, mapConversation } from '../utils/mappers';
 
 const getCompensationMap = (COLORS) => ({
@@ -24,7 +26,7 @@ const getCompensationMap = (COLORS) => ({
 
 export default function PostDetailsScreen({ route, navigation }) {
   const { postId } = route.params;
-  const { user, isGuest } = useAuth();
+  const { user, isGuest, blockedUserIds, refreshBlockedUsers } = useAuth();
   const { colors: COLORS } = useTheme();
   const styles = useMemo(() => createStyles(COLORS), [COLORS]);
   const [post, setPost] = useState(null);
@@ -34,6 +36,8 @@ export default function PostDetailsScreen({ route, navigation }) {
   const [bookmarked, setBookmarked] = useState(false);
   const [booking, setBooking] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [reportVisible, setReportVisible] = useState(false);
+  const [reporting, setReporting] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -102,6 +106,58 @@ export default function PostDetailsScreen({ route, navigation }) {
     });
   };
 
+  const handleBlockUser = () => {
+    requireAuth(() => {
+      const isBlocked = blockedUserIds.includes(post.user.id);
+      Alert.alert(
+        isBlocked ? 'Unblock this user?' : 'Block this user?',
+        isBlocked
+          ? `${post.user.name} will be able to message you again.`
+          : `You won't be able to message ${post.user.name} and they won't be able to message you.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: isBlocked ? 'Unblock' : 'Block',
+            style: isBlocked ? 'default' : 'destructive',
+            onPress: async () => {
+              try {
+                await userService.toggleBlock(post.user.id);
+                await refreshBlockedUsers();
+                Alert.alert(isBlocked ? 'User unblocked' : 'User blocked', `${post.user.name} has been ${isBlocked ? 'unblocked' : 'blocked'}.`);
+              } catch (err) {
+                Alert.alert('Could not update block status', err.message || 'Please try again.');
+              }
+            },
+          },
+        ]
+      );
+    });
+  };
+
+  const handleReportSubmit = async ({ reason, details }, closeModal) => {
+    setReporting(true);
+    try {
+      await userService.reportUser(post.user.id, { reason, details, postId });
+      closeModal();
+      Alert.alert('Report submitted', "Thanks for letting us know — we'll look into it.");
+    } catch (err) {
+      Alert.alert('Could not submit report', err.message || 'Please try again.');
+    } finally {
+      setReporting(false);
+    }
+  };
+
+  const handleMoreOptions = () => {
+    requireAuth(() => {
+      const isBlocked = blockedUserIds.includes(post.user.id);
+      Alert.alert('More options', undefined, [
+        { text: 'Report User', onPress: () => setReportVisible(true) },
+        { text: isBlocked ? 'Unblock User' : 'Block User', style: 'destructive', onPress: handleBlockUser },
+        { text: 'Cancel', style: 'cancel' },
+      ]);
+    });
+  };
+
   const handleEdit = () => {
     navigation.navigate('MainTabs', { screen: 'Create', params: { editPost: rawPost } });
   };
@@ -166,9 +222,16 @@ export default function PostDetailsScreen({ route, navigation }) {
           <Pressable onPress={() => navigation.goBack()} style={styles.circleBtn}>
             <Ionicons name="arrow-back" size={20} color={COLORS.text} />
           </Pressable>
-          <Pressable onPress={handleToggleBookmark} style={styles.circleBtn}>
-            <Ionicons name={bookmarked ? 'bookmark' : 'bookmark-outline'} size={20} color={bookmarked ? COLORS.primary : COLORS.text} />
-          </Pressable>
+          <View style={{ flexDirection: 'row' }}>
+            {!isOwner && (
+              <Pressable onPress={handleMoreOptions} style={[styles.circleBtn, { marginRight: SPACING.sm }]}>
+                <Ionicons name="ellipsis-horizontal" size={20} color={COLORS.text} />
+              </Pressable>
+            )}
+            <Pressable onPress={handleToggleBookmark} style={styles.circleBtn}>
+              <Ionicons name={bookmarked ? 'bookmark' : 'bookmark-outline'} size={20} color={bookmarked ? COLORS.primary : COLORS.text} />
+            </Pressable>
+          </View>
         </SafeAreaView>
 
         <View style={styles.content}>
@@ -243,6 +306,13 @@ export default function PostDetailsScreen({ route, navigation }) {
           </>
         )}
       </View>
+
+      <ReportModal
+        visible={reportVisible}
+        onClose={() => setReportVisible(false)}
+        onSubmit={handleReportSubmit}
+        submitting={reporting}
+      />
     </View>
   );
 }

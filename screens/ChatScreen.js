@@ -9,21 +9,24 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AvatarWithStatus from '../components/AvatarWithStatus';
 import MessageBubble from '../components/MessageBubble';
+import ReportModal from '../components/ReportModal';
 import { FONT, SPACING, RADIUS } from '../constants/theme';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import conversationService from '../services/conversationService';
+import userService from '../services/userService';
 import { mapMessage } from '../utils/mappers';
 import useSocket from '../hooks/useSocket';
 
 export default function ChatScreen({ route, navigation }) {
   const { conversation } = route.params;
-  const { user } = useAuth();
+  const { user, blockedUserIds, refreshBlockedUsers } = useAuth();
   const { colors: COLORS } = useTheme();
   const styles = useMemo(() => createStyles(COLORS), [COLORS]);
   const socket = useSocket();
@@ -32,6 +35,8 @@ export default function ChatScreen({ route, navigation }) {
   const [text, setText] = useState('');
   const [remoteTyping, setRemoteTyping] = useState(false);
   const [online, setOnline] = useState(conversation.online);
+  const [reportVisible, setReportVisible] = useState(false);
+  const [reporting, setReporting] = useState(false);
   const listRef = useRef(null);
   const typingTimeoutRef = useRef(null);
 
@@ -63,12 +68,16 @@ export default function ChatScreen({ route, navigation }) {
     };
     const onOnline = ({ userId }) => userId === conversation.user.id && setOnline(true);
     const onOffline = ({ userId }) => userId === conversation.user.id && setOnline(false);
+    const onSendError = ({ conversationId, message }) => {
+      if (conversationId === conversation.id) Alert.alert('Message not sent', message);
+    };
 
     socket.on('receive_message', onReceive);
     socket.on('typing', onTyping);
     socket.on('stop_typing', onStopTyping);
     socket.on('user_online', onOnline);
     socket.on('user_offline', onOffline);
+    socket.on('send_message_error', onSendError);
 
     return () => {
       socket.emit('leave_conversation', conversation.id);
@@ -77,6 +86,7 @@ export default function ChatScreen({ route, navigation }) {
       socket.off('stop_typing', onStopTyping);
       socket.off('user_online', onOnline);
       socket.off('user_offline', onOffline);
+      socket.off('send_message_error', onSendError);
     };
   }, [socket, conversation.id, user?.id]);
 
@@ -94,6 +104,60 @@ export default function ChatScreen({ route, navigation }) {
     typingTimeoutRef.current = setTimeout(() => {
       socket.emit('stop_typing', { conversationId: conversation.id });
     }, 1200);
+  };
+
+  const handleBlockUser = () => {
+    const isBlocked = blockedUserIds.includes(conversation.user.id);
+    Alert.alert(
+      isBlocked ? 'Unblock this user?' : 'Block this user?',
+      isBlocked
+        ? `${conversation.user.name} will be able to message you again.`
+        : `You won't be able to message ${conversation.user.name} and they won't be able to message you.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: isBlocked ? 'Unblock' : 'Block',
+          style: isBlocked ? 'default' : 'destructive',
+          onPress: async () => {
+            try {
+              await userService.toggleBlock(conversation.user.id);
+              await refreshBlockedUsers();
+              if (isBlocked) {
+                Alert.alert('User unblocked', `${conversation.user.name} has been unblocked.`);
+              } else {
+                Alert.alert('User blocked', `${conversation.user.name} has been blocked.`, [
+                  { text: 'OK', onPress: () => navigation.goBack() },
+                ]);
+              }
+            } catch (err) {
+              Alert.alert('Could not update block status', err.message || 'Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleReportSubmit = async ({ reason, details }, closeModal) => {
+    setReporting(true);
+    try {
+      await userService.reportUser(conversation.user.id, { reason, details });
+      closeModal();
+      Alert.alert('Report submitted', "Thanks for letting us know — we'll look into it.");
+    } catch (err) {
+      Alert.alert('Could not submit report', err.message || 'Please try again.');
+    } finally {
+      setReporting(false);
+    }
+  };
+
+  const handleMoreOptions = () => {
+    const isBlocked = blockedUserIds.includes(conversation.user.id);
+    Alert.alert(conversation.user.name, undefined, [
+      { text: 'Report User', onPress: () => setReportVisible(true) },
+      { text: isBlocked ? 'Unblock User' : 'Block User', style: 'destructive', onPress: handleBlockUser },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   const handleSend = async () => {
@@ -127,8 +191,8 @@ export default function ChatScreen({ route, navigation }) {
             <Text style={styles.name} numberOfLines={1}>{conversation.user.name}</Text>
             <Text style={styles.status}>{remoteTyping ? 'Typing...' : online ? 'Online' : 'Offline'}</Text>
           </View>
-          <Pressable hitSlop={10} style={styles.iconBtn}>
-            <Ionicons name="call-outline" size={20} color={COLORS.primary} />
+          <Pressable hitSlop={10} style={styles.iconBtn} onPress={handleMoreOptions}>
+            <Ionicons name="ellipsis-vertical" size={20} color={COLORS.primary} />
           </Pressable>
         </View>
 
@@ -168,6 +232,13 @@ export default function ChatScreen({ route, navigation }) {
           </Pressable>
         </View>
       </SafeAreaView>
+
+      <ReportModal
+        visible={reportVisible}
+        onClose={() => setReportVisible(false)}
+        onSubmit={handleReportSubmit}
+        submitting={reporting}
+      />
     </KeyboardAvoidingView>
   );
 }
