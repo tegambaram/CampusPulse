@@ -10,14 +10,13 @@ import { useTheme } from '../context/ThemeContext';
 import authService from '../services/authService';
 
 export default function LoginScreen({ navigation }) {
-  const { login, googleLogin } = useAuth();
+  const { login } = useAuth();
   const { colors: COLORS } = useTheme();
   const styles = useMemo(() => createStyles(COLORS), [COLORS]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -32,22 +31,6 @@ export default function LoginScreen({ navigation }) {
       Alert.alert('Login failed', error.message || 'Please check your credentials and try again.');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    setGoogleLoading(true);
-    try {
-      await googleLogin({
-        email: 'google.demo.user@gmail.com',
-        name: 'Google Demo User',
-        avatar: 'https://i.pravatar.cc/300?img=60',
-      });
-      navigation.replace('MainTabs');
-    } catch (error) {
-      Alert.alert('Google login failed', error.message || 'Please try again.');
-    } finally {
-      setGoogleLoading(false);
     }
   };
 
@@ -106,20 +89,6 @@ export default function LoginScreen({ navigation }) {
             </View>
 
             <CustomButton title="Login" onPress={handleLogin} loading={loading} style={{ marginTop: SPACING.xl }} />
-
-            <View style={styles.dividerRow}>
-              <View style={styles.divider} />
-              <Text style={styles.dividerText}>or continue with</Text>
-              <View style={styles.divider} />
-            </View>
-
-            <CustomButton
-              title="Continue with Google"
-              variant="google"
-              icon="logo-google"
-              loading={googleLoading}
-              onPress={handleGoogleLogin}
-            />
           </View>
 
           <View style={styles.footerRow}>
