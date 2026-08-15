@@ -21,3 +21,11 @@ const BASE = USE_PRODUCTION && PRODUCTION_URL ? PRODUCTION_URL : `http://${LOCAL
 
 export const API_BASE_URL = `${BASE}/api`;
 export const SOCKET_URL = BASE;
+
+// Cloudinary unsigned upload — picked images (post photos, avatars) are uploaded directly
+// from the client to Cloudinary before the resulting permanent https:// URL is sent to our
+// backend. Direct-from-client keeps large image payloads off our API server entirely; the
+// preset is set to unsigned mode in the Cloudinary dashboard so no API secret is needed here.
+export const CLOUDINARY_CLOUD_NAME = 'obykkgpd';
+export const CLOUDINARY_UPLOAD_PRESET = 'CampusPulse';
+export const CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;

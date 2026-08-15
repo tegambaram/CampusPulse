@@ -10,6 +10,7 @@ import { FONT, SPACING, RADIUS } from '../constants/theme';
 import { useTheme } from '../context/ThemeContext';
 import categoryService from '../services/categoryService';
 import postService from '../services/postService';
+import uploadService from '../services/uploadService';
 
 const COMPENSATIONS = [
   { key: 'free', label: 'Free', icon: 'gift-outline' },
@@ -79,6 +80,13 @@ export default function CreatePostScreen({ navigation, route }) {
 
     setSubmitting(true);
     try {
+      // image.uri is a local file:// path from the picker until we upload it — an already-
+      // remote https:// URL means this is an untouched image from edit mode, so skip re-uploading it.
+      let imageUri = image ? image.uri : null;
+      if (imageUri && !imageUri.startsWith('http')) {
+        imageUri = await uploadService.uploadImage(imageUri);
+      }
+
       const payload = {
         type: postType,
         title,
@@ -87,7 +95,7 @@ export default function CreatePostScreen({ navigation, route }) {
         compensationType,
         compensationAmount: compensationAmount || undefined,
         location,
-        imageUri: image ? image.uri : null,
+        imageUri,
       };
 
       if (isEditMode) {

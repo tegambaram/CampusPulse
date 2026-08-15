@@ -11,6 +11,7 @@ import { FONT, SPACING, RADIUS } from '../constants/theme';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import userService from '../services/userService';
+import uploadService from '../services/uploadService';
 
 const DEPARTMENTS = ['Computer Science', 'Information Technology', 'Electronics & Comm.', 'Mechanical Engg.', 'Civil Engineering', 'Fine Arts', 'Music & Performing Arts', 'Business Administration'];
 const SEMESTERS = ['1st Semester', '2nd Semester', '3rd Semester', '4th Semester', '5th Semester', '6th Semester', '7th Semester', '8th Semester'];
@@ -46,10 +47,11 @@ export default function EditProfileScreen({ navigation }) {
     if (result.canceled || !result.assets?.length) return;
 
     const asset = result.assets[0];
-    setAvatar(asset.uri);
+    setAvatar(asset.uri); // instant local preview while the real upload happens in the background
     setUploadingAvatar(true);
     try {
-      const res = await userService.uploadAvatar(asset.uri);
+      const remoteUrl = await uploadService.uploadImage(asset.uri);
+      const res = await userService.uploadAvatar(remoteUrl);
       setAvatar(res.profileImage);
       updateLocalUser({ profileImage: res.profileImage });
     } catch (error) {
