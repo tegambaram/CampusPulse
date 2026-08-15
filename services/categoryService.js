@@ -1,8 +1,5 @@
-import * as db from '../data/localDb';
+import api from './api';
 
-const getAll = async () => {
-  await db.ready();
-  return db.getAll('categories');
-};
+const getAll = async () => (await api.get('/categories')).data;
 
 export default { getAll };

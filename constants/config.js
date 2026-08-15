@@ -1,12 +1,23 @@
-// NOTE: Platform.OS is "android"/"ios" for BOTH emulators and physical devices, so it can't
-// be used to auto-detect which one you're running on. Set HOST manually for your setup:
+// --- Fill these in once the backend is deployed / running locally --------------------------
 //
-// - Physical device via Expo Go (same Wi-Fi as this PC) -> your PC's LAN IP (current default)
-// - Android Studio Emulator                              -> '10.0.2.2'
-// - iOS Simulator                                          -> 'localhost'
-const HOST = '10.253.88.201'; // this machine's current Wi-Fi IPv4 address
+// LOCAL DEV: Platform.OS can't tell an emulator apart from a physical device, so set this
+// manually for how you're testing (find your PC's LAN IP with `ipconfig` on Windows —
+// the "Wi-Fi" adapter's IPv4 address — your phone and PC must be on the same Wi-Fi network):
+//   - Physical device via Expo Go (same Wi-Fi as this PC) -> your PC's LAN IP
+//   - Android Studio Emulator                              -> '10.0.2.2'
+//   - iOS Simulator                                          -> 'localhost'
+const LOCAL_HOST = '10.253.88.201';
+const LOCAL_PORT = 4000; // matches backend/.env's PORT
 
-const PORT = 5000;
+// PRODUCTION: once the backend is deployed (e.g. to Render/Railway), put its URL here.
+const PRODUCTION_URL = ''; // e.g. 'https://campuspulse-backend.onrender.com'
 
-export const API_BASE_URL = `http://${HOST}:${PORT}/api`;
-export const SOCKET_URL = `http://${HOST}:${PORT}`;
+// Flip this to true once PRODUCTION_URL is set, to point the app at the deployed backend
+// instead of your local dev machine.
+const USE_PRODUCTION = false;
+// ---------------------------------------------------------------------------------------------
+
+const BASE = USE_PRODUCTION && PRODUCTION_URL ? PRODUCTION_URL : `http://${LOCAL_HOST}:${LOCAL_PORT}`;
+
+export const API_BASE_URL = `${BASE}/api`;
+export const SOCKET_URL = BASE;

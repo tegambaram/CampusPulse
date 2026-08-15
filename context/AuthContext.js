@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useRef, useState } from 'r
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import authService from '../services/authService';
 import { disconnectSocket } from '../utils/socketClient';
+import { registerForPushNotificationsAsync } from '../utils/pushToken';
 
 const AuthContext = createContext(null);
 
@@ -17,12 +18,21 @@ export function AuthProvider({ children }) {
   const [isLoading, setIsLoading] = useState(true);
   const bootstrapped = useRef(false);
 
+  // Best-effort: ask for notification permission and hand the backend a device push token
+  // so it can reach this user even when the app is backgrounded/closed. Never blocks login.
+  const syncPushToken = () => {
+    registerForPushNotificationsAsync()
+      .then((expoPushToken) => expoPushToken && authService.registerPushToken(expoPushToken))
+      .catch(() => {});
+  };
+
   const persist = async (nextToken, nextUser) => {
     const normalized = normalizeUser(nextUser);
     await AsyncStorage.multiSet([['token', nextToken], ['user', JSON.stringify(normalized)]]);
     setToken(nextToken);
     setUser(normalized);
     setIsGuest(false);
+    syncPushToken();
   };
 
   const clearSession = async () => {
@@ -48,6 +58,7 @@ export function AuthProvider({ children }) {
           try {
             const freshUser = await authService.getMe();
             setUser(normalizeUser(freshUser));
+            syncPushToken();
           } catch (error) {
             await clearSession();
           }

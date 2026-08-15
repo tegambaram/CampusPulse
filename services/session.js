@@ -1,13 +1,17 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const TOKEN_PREFIX = 'local-token-';
-
-// Every local service needs to know "who is currently logged in" to filter/attribute data,
-// mirroring what the old JWT-authenticated backend derived from the Authorization header.
+// AuthContext persists the logged-in user object (JSON) alongside the JWT under the 'user'
+// key — read that directly rather than trying to decode a real JWT client-side, which is
+// unnecessary here and would need a separate base64/JWT-decode dependency.
 export const getCurrentUserId = async () => {
-  const token = await AsyncStorage.getItem('token');
-  if (!token || !token.startsWith(TOKEN_PREFIX)) return null;
-  return token.slice(TOKEN_PREFIX.length);
+  const stored = await AsyncStorage.getItem('user');
+  if (!stored) return null;
+  try {
+    const user = JSON.parse(stored);
+    return user?.id || user?._id || null;
+  } catch (err) {
+    return null;
+  }
 };
 
 export const requireCurrentUserId = async () => {
