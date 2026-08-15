@@ -28,6 +28,12 @@
     },
     "plugins": [
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "f1d9db8d-db8c-4a1e-a021-3920a3f00539"
+      }
+    },
+    "owner": "egambaram"
   }
 }
