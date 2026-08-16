@@ -1,5 +1,6 @@
 import * as db from '../data/localDb';
 import { requireCurrentUserId } from './session';
+import { clampPage } from '../utils/pagination';
 
 const publicUser = (user) => {
   if (!user) return null;
@@ -55,8 +56,9 @@ const getUserReviews = async (id, page = 1) => {
   await db.ready();
   const [reviews, byId] = await Promise.all([db.getAll('reviews'), usersMap()]);
   const mine = reviews.filter((r) => r.toUser === id).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const safePage = clampPage(page);
   const limit = 10;
-  const start = (page - 1) * limit;
+  const start = (safePage - 1) * limit;
   return { data: mine.slice(start, start + limit).map((r) => ({ ...r, fromUser: byId.get(r.fromUser) || r.fromUser })) };
 };
 
@@ -64,8 +66,9 @@ const getUserPosts = async (id, page = 1) => {
   await db.ready();
   const [posts, byId] = await Promise.all([db.getAll('posts'), usersMap()]);
   const mine = posts.filter((p) => p.user === id && p.status !== 'deleted').sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const safePage = clampPage(page);
   const limit = 10;
-  const start = (page - 1) * limit;
+  const start = (safePage - 1) * limit;
   return { data: mine.slice(start, start + limit).map((p) => ({ ...p, user: byId.get(p.user) || p.user })) };
 };
 

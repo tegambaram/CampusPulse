@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as db from '../data/localDb';
 import { getCurrentUserId } from './session';
+import { clampPage } from '../utils/pagination';
 
 const RECENT_KEY_PREFIX = '@campuspulse/recentSearches/';
 const MAX_RECENT = 6;
@@ -31,8 +32,9 @@ const search = async (q, page = 1) => {
 
   await recordRecent(q);
 
+  const safePage = clampPage(page);
   const limit = 20;
-  const start = (page - 1) * limit;
+  const start = (safePage - 1) * limit;
   return {
     data: matches.slice(start, start + limit).map((p) => ({ ...p, user: byId.get(p.user) || p.user })),
     meta: { hasMore: start + limit < matches.length },

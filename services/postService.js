@@ -1,11 +1,9 @@
 import * as db from '../data/localDb';
 import { getCurrentUserId, requireCurrentUserId } from './session';
+import { clampPage, clampLimit } from '../utils/pagination';
 
 const populate = (post, usersById) => ({ ...post, user: usersById.get(post.user) || post.user });
 
-// `Number('abc')` is NaN, and NaN silently round-trips to `null` the moment it's JSON-persisted
-// (data/localDb.js's `persist()`), leaving the in-memory cache and stored value disagreeing until
-// the next reload. Validate instead of trusting the cast.
 const TITLE_MAX = 100;
 const DESCRIPTION_MAX = 1000;
 const LOCATION_MAX = 100;
@@ -22,6 +20,9 @@ const validateTextFields = ({ title, description, location }) => {
   }
 };
 
+// `Number('abc')` is NaN, and NaN silently round-trips to `null` the moment it's JSON-persisted
+// (data/localDb.js's `persist()`), leaving the in-memory cache and stored value disagreeing until
+// the next reload. Validate instead of trusting the cast.
 const parseCompensationAmount = (value) => {
   if (value === undefined || value === null || value === '') return undefined;
   const amount = Number(value);
@@ -45,12 +46,14 @@ const getFeed = async ({ page = 1, limit = 10, category } = {}) => {
   if (category && category !== 'All') filtered = filtered.filter((p) => p.category === category);
   filtered = [...filtered].sort(sortByNewest);
 
-  const start = (page - 1) * limit;
-  const pageItems = filtered.slice(start, start + limit);
+  const safePage = clampPage(page);
+  const safeLimit = clampLimit(limit, 10);
+  const start = (safePage - 1) * safeLimit;
+  const pageItems = filtered.slice(start, start + safeLimit);
 
   return {
     data: pageItems.map((p) => populate(p, byId)),
-    meta: { hasMore: start + limit < filtered.length, page, total: filtered.length },
+    meta: { hasMore: start + safeLimit < filtered.length, page: safePage, total: filtered.length },
   };
 };
 
@@ -137,11 +140,12 @@ const getBookmarked = async (page = 1) => {
   await db.ready();
   const [posts, byId] = await Promise.all([db.getAll('posts'), usersMap()]);
   const mine = posts.filter((p) => userId && p.bookmarkedBy.includes(userId)).sort(sortByNewest);
+  const safePage = clampPage(page);
   const limit = 10;
-  const start = (page - 1) * limit;
+  const start = (safePage - 1) * limit;
   return {
     data: mine.slice(start, start + limit).map((p) => populate(p, byId)),
-    meta: { hasMore: start + limit < mine.length, page, total: mine.length },
+    meta: { hasMore: start + limit < mine.length, page: safePage, total: mine.length },
   };
 };
 
