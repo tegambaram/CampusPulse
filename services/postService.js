@@ -117,22 +117,27 @@ const deletePost = async (id) => {
 
 const toggleLike = async (id) => {
   const userId = await requireCurrentUserId();
-  const post = await db.findById('posts', id);
-  if (!post) throw { message: 'This post no longer exists.' };
-  const liked = post.likedBy.includes(userId);
-  const likedBy = liked ? post.likedBy.filter((u) => u !== userId) : [...post.likedBy, userId];
-  const updated = await db.update('posts', id, { likedBy, likesCount: likedBy.length });
-  return { liked: !liked, likesCount: updated.likesCount };
+  // updateWith recomputes `liked`/`likedBy` from the record's current state inside the DB's write
+  // queue, so two rapid toggles (e.g. a double-tap) can't both read the same stale snapshot and
+  // silently undo each other.
+  const updated = await db.updateWith('posts', id, (post) => {
+    const liked = post.likedBy.includes(userId);
+    const likedBy = liked ? post.likedBy.filter((u) => u !== userId) : [...post.likedBy, userId];
+    return { likedBy, likesCount: likedBy.length };
+  });
+  if (!updated) throw { message: 'This post no longer exists.' };
+  return { liked: updated.likedBy.includes(userId), likesCount: updated.likesCount };
 };
 
 const toggleBookmark = async (id) => {
   const userId = await requireCurrentUserId();
-  const post = await db.findById('posts', id);
-  if (!post) throw { message: 'This post no longer exists.' };
-  const bookmarked = post.bookmarkedBy.includes(userId);
-  const bookmarkedBy = bookmarked ? post.bookmarkedBy.filter((u) => u !== userId) : [...post.bookmarkedBy, userId];
-  const updated = await db.update('posts', id, { bookmarkedBy });
-  return { bookmarked: !bookmarked, bookmarkedCount: updated.bookmarkedBy.length };
+  const updated = await db.updateWith('posts', id, (post) => {
+    const bookmarked = post.bookmarkedBy.includes(userId);
+    const bookmarkedBy = bookmarked ? post.bookmarkedBy.filter((u) => u !== userId) : [...post.bookmarkedBy, userId];
+    return { bookmarkedBy };
+  });
+  if (!updated) throw { message: 'This post no longer exists.' };
+  return { bookmarked: updated.bookmarkedBy.includes(userId), bookmarkedCount: updated.bookmarkedBy.length };
 };
 
 const getBookmarked = async (page = 1) => {
