@@ -1,13 +1,15 @@
 import * as db from '../data/localDb';
 import { requireCurrentUserId } from './session';
+import { clampPage } from '../utils/pagination';
 
 const getNotifications = async (page = 1) => {
   const myId = await requireCurrentUserId();
   await db.ready();
   const notifications = await db.getAll('notifications');
   const mine = notifications.filter((n) => n.user === myId).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const safePage = clampPage(page);
   const limit = 20;
-  const start = (page - 1) * limit;
+  const start = (safePage - 1) * limit;
   return { data: mine.slice(start, start + limit), meta: { hasMore: start + limit < mine.length } };
 };
 
