@@ -56,8 +56,11 @@ const createPost = async (payload) => {
 };
 
 const updatePost = async (id, payload) => {
-  await requireCurrentUserId();
+  const userId = await requireCurrentUserId();
   await db.ready();
+  const existing = await db.findById('posts', id);
+  if (!existing) throw { message: 'This post no longer exists.' };
+  if (existing.user !== userId) throw { message: 'You can only edit your own posts.' };
   const patch = { ...payload };
   if (payload.compensationAmount !== undefined) patch.compensationAmount = payload.compensationAmount ? Number(payload.compensationAmount) : undefined;
   if (payload.imageUri !== undefined) {
@@ -71,7 +74,10 @@ const updatePost = async (id, payload) => {
 };
 
 const deletePost = async (id) => {
-  await requireCurrentUserId();
+  const userId = await requireCurrentUserId();
+  const existing = await db.findById('posts', id);
+  if (!existing) throw { message: 'This post no longer exists.' };
+  if (existing.user !== userId) throw { message: 'You can only delete your own posts.' };
   await db.remove('posts', id);
   return { message: 'Post deleted' };
 };

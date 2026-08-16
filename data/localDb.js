@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { hashPassword, randomToken } from '../utils/crypto';
 
 // A tiny local "database" that fully replaces the network backend. Every collection is kept as a
 // JSON array in AsyncStorage under its own key, mirroring the shape of the old MongoDB documents
@@ -9,7 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const STORAGE_PREFIX = '@campuspulse/';
 const SEED_FLAG_KEY = `${STORAGE_PREFIX}seeded`;
 
-const COLLECTIONS = ['users', 'categories', 'posts', 'conversations', 'messages', 'notifications', 'bookings', 'reviews'];
+const COLLECTIONS = ['users', 'categories', 'posts', 'conversations', 'messages', 'notifications', 'bookings', 'reviews', 'sessions'];
 
 let cache = null; // { users: [...], posts: [...], ... } once loaded into memory
 let loadPromise = null;
@@ -76,21 +77,26 @@ const LOCATIONS = ['Block A Hostel', 'Block C Hostel', 'Central Library', 'CS De
 // The one login every seeded user shares — surfaced to the user as "the" demo account.
 export const DEMO_PASSWORD = 'password123';
 
-const buildSeed = () => {
+const buildSeed = async () => {
   const categories = CATEGORY_SEED.map((c) => ({ _id: genId(), ...c, postCount: 0 }));
 
-  const users = USER_SEED.map((u, i) => ({
-    _id: genId(),
-    ...u,
-    collegeEmail: `${u.name.toLowerCase().replace(/\s+/g, '.')}@campuspulse.edu`,
-    password: DEMO_PASSWORD,
-    profileImage: `https://i.pravatar.cc/300?img=${i + 1}`,
-    bio: 'Student at CampusPulse, always happy to help or learn something new.',
-    skills: pickSome(['React Native', 'DSA', 'Java', 'Public Speaking', 'Photography', 'Guitar', 'Photoshop', 'Excel', 'Python', 'Spanish'], 4),
-    availability: pickSome(['Weekday Mornings', 'Weekday Evenings', 'Weekends', 'Flexible / Anytime'], 2),
-    rating: 0,
-    ratingCount: 0,
-    isOnline: i % 3 !== 0,
+  const users = await Promise.all(USER_SEED.map(async (u, i) => {
+    const passwordSalt = await randomToken(16);
+    const passwordHash = await hashPassword(DEMO_PASSWORD, passwordSalt);
+    return {
+      _id: genId(),
+      ...u,
+      collegeEmail: `${u.name.toLowerCase().replace(/\s+/g, '.')}@campuspulse.edu`,
+      passwordHash,
+      passwordSalt,
+      profileImage: `https://i.pravatar.cc/300?img=${i + 1}`,
+      bio: 'Student at CampusPulse, always happy to help or learn something new.',
+      skills: pickSome(['React Native', 'DSA', 'Java', 'Public Speaking', 'Photography', 'Guitar', 'Photoshop', 'Excel', 'Python', 'Spanish'], 4),
+      availability: pickSome(['Weekday Mornings', 'Weekday Evenings', 'Weekends', 'Flexible / Anytime'], 2),
+      rating: 0,
+      ratingCount: 0,
+      isOnline: i % 3 !== 0,
+    };
   }));
 
   const posts = POST_SEED.map((p, i) => {
@@ -209,7 +215,7 @@ const buildSeed = () => {
     });
   });
 
-  return { users, categories, posts, conversations, messages, notifications, bookings, reviews };
+  return { users, categories, posts, conversations, messages, notifications, bookings, reviews, sessions: [] };
 };
 
 const load = async () => {
@@ -219,7 +225,7 @@ const load = async () => {
   loadPromise = (async () => {
     const seeded = await AsyncStorage.getItem(SEED_FLAG_KEY);
     if (!seeded) {
-      const seed = buildSeed();
+      const seed = await buildSeed();
       await AsyncStorage.multiSet(COLLECTIONS.map((key) => [`${STORAGE_PREFIX}${key}`, JSON.stringify(seed[key])]));
       await AsyncStorage.setItem(SEED_FLAG_KEY, '1');
       cache = seed;

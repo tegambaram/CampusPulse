@@ -29,6 +29,12 @@ const create = async ({ postId }) => {
   if (!post) throw { message: 'This post no longer exists.' };
   if (post.user === userId) throw { message: "You can't book your own post." };
 
+  const existingBookings = await db.getAll('bookings');
+  const alreadyBooked = existingBookings.some(
+    (b) => b.post === postId && b.requester === userId && b.status === 'upcoming'
+  );
+  if (alreadyBooked) throw { message: "You've already got an upcoming booking for this post." };
+
   const record = await db.insert('bookings', {
     post: postId,
     requester: userId,
@@ -41,9 +47,18 @@ const create = async ({ postId }) => {
 };
 
 const updateStatus = async (id, status) => {
-  await requireCurrentUserId();
+  const userId = await requireCurrentUserId();
+  const booking = await db.findById('bookings', id);
+  if (!booking) throw { message: 'This booking no longer exists.' };
+  if (booking.requester !== userId && booking.provider !== userId) {
+    throw { message: "You can't update a booking you're not part of." };
+  }
+  // Only the provider (the peer actually delivering the service) can mark a booking complete;
+  // either side can cancel their own booking.
+  if (status === 'completed' && booking.provider !== userId) {
+    throw { message: 'Only the provider can mark a booking as completed.' };
+  }
   const updated = await db.update('bookings', id, { status });
-  if (!updated) throw { message: 'This booking no longer exists.' };
   const { usersById, postsById } = await lookups();
   return populate(updated, usersById, postsById);
 };
@@ -52,6 +67,11 @@ const addReview = async (id, { rating, comment }) => {
   const userId = await requireCurrentUserId();
   const booking = await db.findById('bookings', id);
   if (!booking) throw { message: 'This booking no longer exists.' };
+  if (booking.requester !== userId) throw { message: 'Only the requester can review this booking.' };
+  if (booking.status !== 'completed') throw { message: 'You can only review completed bookings.' };
+
+  const reviews = await db.getAll('reviews');
+  if (reviews.some((r) => r.booking === id)) throw { message: 'This booking has already been reviewed.' };
 
   const review = await db.insert('reviews', {
     booking: id,

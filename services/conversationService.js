@@ -30,8 +30,13 @@ const getConversations = async () => {
 };
 
 const getMessages = async (conversationId, page = 1) => {
-  await requireCurrentUserId();
+  const myId = await requireCurrentUserId();
   await db.ready();
+  const conversation = await db.findById('conversations', conversationId);
+  if (!conversation) throw { message: 'This conversation no longer exists.' };
+  if (!conversation.participants.includes(myId)) {
+    throw { message: "You don't have access to this conversation." };
+  }
   const messages = await db.getAll('messages');
   const mine = messages.filter((m) => m.conversation === conversationId).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
   return { data: mine };
@@ -41,6 +46,9 @@ const sendMessage = async (conversationId, text) => {
   const myId = await requireCurrentUserId();
   const conversation = await db.findById('conversations', conversationId);
   if (!conversation) throw { message: 'This conversation no longer exists.' };
+  if (!conversation.participants.includes(myId)) {
+    throw { message: "You don't have access to this conversation." };
+  }
 
   const message = await db.insert('messages', { conversation: conversationId, sender: myId, text });
 
