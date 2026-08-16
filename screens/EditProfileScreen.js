@@ -118,7 +118,7 @@ export default function EditProfileScreen({ navigation }) {
         </View>
 
         <CustomInput label="Full Name" icon="person-outline" value={name} onChangeText={setName} autoCapitalize="words" />
-        <CustomInput label="Bio" icon="document-text-outline" value={bio} onChangeText={setBio} multiline />
+        <CustomInput label="Bio" icon="document-text-outline" value={bio} onChangeText={setBio} multiline maxLength={300} />
         <SelectField label="Department" icon="school-outline" value={department} options={DEPARTMENTS} onSelect={setDepartment} placeholder="Select department" />
         <SelectField label="Semester" icon="calendar-outline" value={semester} options={SEMESTERS} onSelect={setSemester} placeholder="Select semester" />
         <SelectField label="Availability" icon="alarm-outline" value={availability} options={AVAILABILITIES} onSelect={setAvailability} placeholder="Select availability" />
