@@ -12,6 +12,8 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import userService from '../services/userService';
 
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
 const DEPARTMENTS = ['Computer Science', 'Information Technology', 'Electronics & Comm.', 'Mechanical Engg.', 'Civil Engineering', 'Fine Arts', 'Music & Performing Arts', 'Business Administration'];
 const SEMESTERS = ['1st Semester', '2nd Semester', '3rd Semester', '4th Semester', '5th Semester', '6th Semester', '7th Semester', '8th Semester'];
 const AVAILABILITIES = ['Weekday Mornings', 'Weekday Evenings', 'Weekends', 'Flexible / Anytime'];
@@ -46,6 +48,10 @@ export default function EditProfileScreen({ navigation }) {
     if (result.canceled || !result.assets?.length) return;
 
     const asset = result.assets[0];
+    if (asset.fileSize && asset.fileSize > MAX_IMAGE_BYTES) {
+      Alert.alert('Image too large', 'Please choose an image under 5MB.');
+      return;
+    }
     setAvatar(asset.uri);
     setUploadingAvatar(true);
     try {
