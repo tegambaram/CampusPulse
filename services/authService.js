@@ -1,14 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as db from '../data/localDb';
 import { hashPassword, randomToken } from '../utils/crypto';
+import { publicUser } from '../utils/publicUser';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 8;
-
-const publicUser = (user) => {
-  const { passwordHash, passwordSalt, ...rest } = user;
-  return rest;
-};
 
 // Creates an opaque session token (unrelated to the user id — see services/session.js for why)
 // and records it in the sessions collection so later requests can resolve token -> user.
@@ -69,6 +65,22 @@ const login = async ({ email, password }) => {
   const users = await db.getAll('users');
   const normalizedEmail = (email || '').trim().toLowerCase();
   const user = users.find((u) => u.collegeEmail.toLowerCase() === normalizedEmail);
+
+  // Accounts created before passwords were hashed have a plaintext `password` field and no
+  // `passwordHash` — data/localDb.js only seeds once per install, so it never rewrites them.
+  // Verify against the legacy field once, then migrate in place, so pre-existing accounts aren't
+  // permanently locked out by a security fix and the plaintext path is never used again after this.
+  if (user && !user.passwordHash && user.password !== undefined) {
+    if (user.password !== password) {
+      throw { message: 'Incorrect email or password. Please try again.' };
+    }
+    const passwordSalt = await randomToken(16);
+    const passwordHash = await hashPassword(password, passwordSalt);
+    const migrated = await db.update('users', user._id, { passwordHash, passwordSalt, password: undefined });
+    const token = await createSession(migrated._id);
+    return { token, user: publicUser(migrated) };
+  }
+
   // Always hash something, even on a miss, so an attacker can't tell "no such user" apart from
   // "wrong password" by response timing alone.
   const hashToCheck = user ? await hashPassword(password, user.passwordSalt) : await hashPassword(password, 'no-such-user');

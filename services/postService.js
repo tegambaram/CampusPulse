@@ -1,6 +1,7 @@
 import * as db from '../data/localDb';
 import { getCurrentUserId, requireCurrentUserId } from './session';
 import { clampPage, clampLimit } from '../utils/pagination';
+import { publicUser } from '../utils/publicUser';
 
 const populate = (post, usersById) => ({ ...post, user: usersById.get(post.user) || post.user });
 
@@ -32,9 +33,11 @@ const parseCompensationAmount = (value) => {
   return amount;
 };
 
+// Sanitized — post.user is another user's data attached to whoever's viewing the feed, so it must
+// never carry passwordHash/passwordSalt (or a legacy plaintext password) through.
 const usersMap = async () => {
   const users = await db.getAll('users');
-  return new Map(users.map((u) => [u._id, u]));
+  return new Map(users.map((u) => [u._id, publicUser(u)]));
 };
 
 const sortByNewest = (a, b) => new Date(b.createdAt) - new Date(a.createdAt);
