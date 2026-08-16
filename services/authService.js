@@ -32,29 +32,32 @@ const register = async ({ name, collegeEmail, department, semester, password, co
   if (confirmPassword !== undefined && password !== confirmPassword) {
     throw { message: 'Password and Confirm Password do not match.' };
   }
-  const users = await db.getAll('users');
   const email = collegeEmail.trim().toLowerCase();
-  if (users.some((u) => u.collegeEmail.toLowerCase() === email)) {
-    throw { message: 'An account with this email already exists. Try logging in instead.' };
-  }
-
   const passwordSalt = await randomToken(16);
   const passwordHash = await hashPassword(password, passwordSalt);
 
-  const user = await db.insert('users', {
-    name,
-    collegeEmail: email,
-    department,
-    semester,
-    passwordHash,
-    passwordSalt,
-    profileImage: `https://i.pravatar.cc/300?u=${encodeURIComponent(email)}`,
-    bio: '',
-    skills: [],
-    availability: [],
-    rating: 0,
-    ratingCount: 0,
-    isOnline: true,
+  // The "email not taken" check and the insert must happen inside the same write-queue task —
+  // otherwise two concurrent registrations for the same email could both pass the check against
+  // the same pre-insert snapshot and both succeed.
+  const user = await db.insertWith('users', (users) => {
+    if (users.some((u) => u.collegeEmail.toLowerCase() === email)) {
+      throw { message: 'An account with this email already exists. Try logging in instead.' };
+    }
+    return {
+      name,
+      collegeEmail: email,
+      department,
+      semester,
+      passwordHash,
+      passwordSalt,
+      profileImage: `https://i.pravatar.cc/300?u=${encodeURIComponent(email)}`,
+      bio: '',
+      skills: [],
+      availability: [],
+      rating: 0,
+      ratingCount: 0,
+      isOnline: true,
+    };
   });
 
   const token = await createSession(user._id);
@@ -89,11 +92,11 @@ const forgotPassword = async (email) => {
 
 const googleLogin = async ({ email, name, avatar }) => {
   await db.ready();
-  const users = await db.getAll('users');
   const normalizedEmail = (email || '').trim().toLowerCase();
-  let user = users.find((u) => u.collegeEmail.toLowerCase() === normalizedEmail);
-  if (!user) {
-    user = await db.insert('users', {
+  const user = await db.findOrCreate(
+    'users',
+    (u) => u.collegeEmail.toLowerCase() === normalizedEmail,
+    () => ({
       name: name || 'Google User',
       collegeEmail: normalizedEmail,
       department: 'Undeclared',
@@ -107,8 +110,8 @@ const googleLogin = async ({ email, name, avatar }) => {
       rating: 0,
       ratingCount: 0,
       isOnline: true,
-    });
-  }
+    })
+  );
   const token = await createSession(user._id);
   return { token, user: publicUser(user) };
 };
