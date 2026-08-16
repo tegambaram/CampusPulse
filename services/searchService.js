@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as db from '../data/localDb';
 import { getCurrentUserId } from './session';
+import { clampPage } from '../utils/pagination';
 
 const RECENT_KEY_PREFIX = '@campuspulse/recentSearches/';
 const MAX_RECENT = 6;
@@ -12,7 +13,7 @@ const usersMap = async () => {
 
 const recordRecent = async (q) => {
   const userId = await getCurrentUserId();
-  if (!userId || !q.trim()) return;
+  if (!userId || typeof q !== 'string' || !q.trim()) return;
   const key = `${RECENT_KEY_PREFIX}${userId}`;
   const stored = await AsyncStorage.getItem(key);
   const list = stored ? JSON.parse(stored) : [];
@@ -23,7 +24,7 @@ const recordRecent = async (q) => {
 const search = async (q, page = 1) => {
   await db.ready();
   const [posts, byId] = await Promise.all([db.getAll('posts'), usersMap()]);
-  const needle = q.trim().toLowerCase();
+  const needle = (typeof q === 'string' ? q : '').trim().toLowerCase();
   const matches = posts
     .filter((p) => p.status !== 'deleted')
     .filter((p) => [p.title, p.description, p.category].some((field) => (field || '').toLowerCase().includes(needle)))
@@ -31,8 +32,9 @@ const search = async (q, page = 1) => {
 
   await recordRecent(q);
 
+  const safePage = clampPage(page);
   const limit = 20;
-  const start = (page - 1) * limit;
+  const start = (safePage - 1) * limit;
   return {
     data: matches.slice(start, start + limit).map((p) => ({ ...p, user: byId.get(p.user) || p.user })),
     meta: { hasMore: start + limit < matches.length },

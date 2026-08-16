@@ -1,5 +1,6 @@
 import * as db from '../data/localDb';
 import { requireCurrentUserId } from './session';
+import { clampPage } from '../utils/pagination';
 
 const publicUser = (user) => {
   if (!user) return null;
@@ -21,9 +22,23 @@ const getUser = async (id) => {
   return { ...publicUser(user), stats: { postsCount, reviewsCount } };
 };
 
+// Only these fields are user-editable via this endpoint. Everything else on the user record
+// (rating, ratingCount, passwordHash/passwordSalt, collegeEmail, isOnline, ...) is
+// server/system-managed and must never be settable through a profile-update payload, even though
+// today's only caller (EditProfileScreen) happens to send a safe subset.
+const EDITABLE_PROFILE_FIELDS = ['name', 'bio', 'department', 'semester', 'skills', 'availability', 'profileImage'];
+const BIO_MAX = 300;
+
 const updateProfile = async (payload) => {
   const myId = await requireCurrentUserId();
-  const updated = await db.update('users', myId, payload);
+  if (payload.bio !== undefined && payload.bio.length > BIO_MAX) {
+    throw { message: `Bio must be ${BIO_MAX} characters or fewer.` };
+  }
+  const patch = {};
+  EDITABLE_PROFILE_FIELDS.forEach((field) => {
+    if (payload[field] !== undefined) patch[field] = payload[field];
+  });
+  const updated = await db.update('users', myId, patch);
   if (!updated) throw { message: 'User not found.' };
   return publicUser(updated);
 };
@@ -41,8 +56,9 @@ const getUserReviews = async (id, page = 1) => {
   await db.ready();
   const [reviews, byId] = await Promise.all([db.getAll('reviews'), usersMap()]);
   const mine = reviews.filter((r) => r.toUser === id).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const safePage = clampPage(page);
   const limit = 10;
-  const start = (page - 1) * limit;
+  const start = (safePage - 1) * limit;
   return { data: mine.slice(start, start + limit).map((r) => ({ ...r, fromUser: byId.get(r.fromUser) || r.fromUser })) };
 };
 
@@ -50,8 +66,9 @@ const getUserPosts = async (id, page = 1) => {
   await db.ready();
   const [posts, byId] = await Promise.all([db.getAll('posts'), usersMap()]);
   const mine = posts.filter((p) => p.user === id && p.status !== 'deleted').sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const safePage = clampPage(page);
   const limit = 10;
-  const start = (page - 1) * limit;
+  const start = (safePage - 1) * limit;
   return { data: mine.slice(start, start + limit).map((p) => ({ ...p, user: byId.get(p.user) || p.user })) };
 };
 

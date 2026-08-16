@@ -256,39 +256,66 @@ export const getAll = async (name) => {
   return cache[name];
 };
 
-export const insert = async (name, doc) => {
+// Every mutation below is chained onto this queue instead of running as soon as it's called. Even
+// though JS is single-threaded, `await load()` yields a microtask tick *even when the cache is
+// already warm* (load() is always async), so two callers that each do a read-then-write against
+// the same record (e.g. two rapid toggleLike taps, both computing `liked` from the same snapshot)
+// can otherwise interleave and one write silently clobbers the other. Routing every mutation
+// through this chain guarantees each one's read + compute + persist runs to completion before the
+// next one starts.
+let writeChain = Promise.resolve();
+const enqueueWrite = (task) => {
+  const result = writeChain.then(task, task);
+  writeChain = result.then(() => {}, () => {});
+  return result;
+};
+
+export const insert = (name, doc) => enqueueWrite(async () => {
   await load();
   const record = { _id: genId(), createdAt: new Date().toISOString(), ...doc };
   cache[name].push(record);
   await persist(name);
   return record;
-};
+});
 
-export const update = async (name, id, patch) => {
+export const update = (name, id, patch) => enqueueWrite(async () => {
   await load();
   const idx = cache[name].findIndex((r) => r._id === id);
   if (idx === -1) return null;
   cache[name][idx] = { ...cache[name][idx], ...patch };
   await persist(name);
   return cache[name][idx];
-};
+});
 
-export const remove = async (name, id) => {
+// Like update(), but the patch is computed from the current record *inside* the exclusive section
+// instead of by the caller beforehand — needed for read-modify-write logic like toggling a like,
+// where the caller can't safely precompute the patch without risking exactly the race described
+// above.
+export const updateWith = (name, id, updater) => enqueueWrite(async () => {
+  await load();
+  const idx = cache[name].findIndex((r) => r._id === id);
+  if (idx === -1) return null;
+  cache[name][idx] = { ...cache[name][idx], ...updater(cache[name][idx]) };
+  await persist(name);
+  return cache[name][idx];
+});
+
+export const remove = (name, id) => enqueueWrite(async () => {
   await load();
   cache[name] = cache[name].filter((r) => r._id !== id);
   await persist(name);
-};
+});
 
 export const findById = async (name, id) => {
   await load();
   return cache[name].find((r) => r._id === id) || null;
 };
 
-export const setCollection = async (name, records) => {
+export const setCollection = (name, records) => enqueueWrite(async () => {
   await load();
   cache[name] = records;
   await persist(name);
-};
+});
 
 export const genLocalId = genId;
 

@@ -11,6 +11,8 @@ import { useTheme } from '../context/ThemeContext';
 import categoryService from '../services/categoryService';
 import postService from '../services/postService';
 
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
 const COMPENSATIONS = [
   { key: 'free', label: 'Free', icon: 'gift-outline' },
   { key: 'paid', label: 'Paid', icon: 'cash-outline' },
@@ -67,7 +69,14 @@ export default function CreatePostScreen({ navigation, route }) {
       aspect: [4, 3],
     });
     if (!result.canceled && result.assets?.length > 0) {
-      setImage(result.assets[0]);
+      const asset = result.assets[0];
+      // fileSize isn't always reported (depends on platform/picker), so this only rejects when we
+      // actually know the file is too big rather than blocking uploads we can't measure.
+      if (asset.fileSize && asset.fileSize > MAX_IMAGE_BYTES) {
+        Alert.alert('Image too large', 'Please choose an image under 5MB.');
+        return;
+      }
+      setImage(asset);
     }
   };
 
@@ -141,6 +150,7 @@ export default function CreatePostScreen({ navigation, route }) {
           placeholder={postType === 'need' ? 'e.g. Need Scientific Calculator' : 'e.g. Offering Guitar Classes'}
           value={title}
           onChangeText={setTitle}
+          maxLength={100}
         />
         <CustomInput
           label="Description"
@@ -149,6 +159,7 @@ export default function CreatePostScreen({ navigation, route }) {
           value={description}
           onChangeText={setDescription}
           multiline
+          maxLength={1000}
         />
         <SelectField
           label="Category"
@@ -158,7 +169,7 @@ export default function CreatePostScreen({ navigation, route }) {
           options={categories.map((c) => c.name)}
           onSelect={setCategory}
         />
-        <CustomInput label="Location" icon="location-outline" placeholder="e.g. Central Library" value={location} onChangeText={setLocation} />
+        <CustomInput label="Location" icon="location-outline" placeholder="e.g. Central Library" value={location} onChangeText={setLocation} maxLength={100} />
 
         <Text style={styles.label}>Compensation</Text>
         <View style={styles.compRow}>
