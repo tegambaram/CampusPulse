@@ -95,7 +95,11 @@ export function AuthProvider({ children }) {
   const updateLocalUser = (patch) => {
     setUser((prev) => {
       const next = { ...prev, ...patch };
-      AsyncStorage.setItem('user', JSON.stringify(next));
+      AsyncStorage.setItem('user', JSON.stringify(next)).catch(() => {
+        // Storage write failed (e.g. device out of space) — in-memory state above still
+        // reflects `next`, so at minimum log rather than fail silently.
+        console.warn('Failed to persist updated user to storage');
+      });
       return next;
     });
   };

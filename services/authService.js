@@ -1,18 +1,33 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as db from '../data/localDb';
+import { hashPassword, randomToken } from '../utils/crypto';
 
-const TOKEN_PREFIX = 'local-token-';
-const idFromToken = (token) => (token && token.startsWith(TOKEN_PREFIX) ? token.slice(TOKEN_PREFIX.length) : null);
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MIN_PASSWORD_LENGTH = 8;
 
 const publicUser = (user) => {
-  const { password, ...rest } = user;
+  const { passwordHash, passwordSalt, ...rest } = user;
   return rest;
+};
+
+// Creates an opaque session token (unrelated to the user id — see services/session.js for why)
+// and records it in the sessions collection so later requests can resolve token -> user.
+const createSession = async (userId) => {
+  const token = await randomToken();
+  await db.insert('sessions', { token, userId });
+  return token;
 };
 
 const register = async ({ name, collegeEmail, department, semester, password, confirmPassword }) => {
   await db.ready();
   if (!name || !collegeEmail || !department || !semester || !password) {
     throw { message: 'Please fill in all the fields to create your account.' };
+  }
+  if (!EMAIL_RE.test(collegeEmail.trim())) {
+    throw { message: 'Please enter a valid email address.' };
+  }
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    throw { message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters long.` };
   }
   if (confirmPassword !== undefined && password !== confirmPassword) {
     throw { message: 'Password and Confirm Password do not match.' };
@@ -23,12 +38,16 @@ const register = async ({ name, collegeEmail, department, semester, password, co
     throw { message: 'An account with this email already exists. Try logging in instead.' };
   }
 
+  const passwordSalt = await randomToken(16);
+  const passwordHash = await hashPassword(password, passwordSalt);
+
   const user = await db.insert('users', {
     name,
     collegeEmail: email,
     department,
     semester,
-    password,
+    passwordHash,
+    passwordSalt,
     profileImage: `https://i.pravatar.cc/300?u=${encodeURIComponent(email)}`,
     bio: '',
     skills: [],
@@ -38,7 +57,8 @@ const register = async ({ name, collegeEmail, department, semester, password, co
     isOnline: true,
   });
 
-  return { token: `${TOKEN_PREFIX}${user._id}`, user: publicUser(user) };
+  const token = await createSession(user._id);
+  return { token, user: publicUser(user) };
 };
 
 const login = async ({ email, password }) => {
@@ -46,10 +66,14 @@ const login = async ({ email, password }) => {
   const users = await db.getAll('users');
   const normalizedEmail = (email || '').trim().toLowerCase();
   const user = users.find((u) => u.collegeEmail.toLowerCase() === normalizedEmail);
-  if (!user || user.password !== password) {
+  // Always hash something, even on a miss, so an attacker can't tell "no such user" apart from
+  // "wrong password" by response timing alone.
+  const hashToCheck = user ? await hashPassword(password, user.passwordSalt) : await hashPassword(password, 'no-such-user');
+  if (!user || !user.passwordHash || hashToCheck !== user.passwordHash) {
     throw { message: 'Incorrect email or password. Please try again.' };
   }
-  return { token: `${TOKEN_PREFIX}${user._id}`, user: publicUser(user) };
+  const token = await createSession(user._id);
+  return { token, user: publicUser(user) };
 };
 
 const forgotPassword = async (email) => {
@@ -74,7 +98,8 @@ const googleLogin = async ({ email, name, avatar }) => {
       collegeEmail: normalizedEmail,
       department: 'Undeclared',
       semester: '1st Semester',
-      password: null,
+      passwordHash: null,
+      passwordSalt: null,
       profileImage: avatar || `https://i.pravatar.cc/300?u=${encodeURIComponent(normalizedEmail)}`,
       bio: '',
       skills: [],
@@ -84,18 +109,27 @@ const googleLogin = async ({ email, name, avatar }) => {
       isOnline: true,
     });
   }
-  return { token: `${TOKEN_PREFIX}${user._id}`, user: publicUser(user) };
+  const token = await createSession(user._id);
+  return { token, user: publicUser(user) };
 };
 
 const getMe = async (token) => {
   await db.ready();
   const activeToken = token || (await AsyncStorage.getItem('token'));
-  const id = idFromToken(activeToken);
-  const user = id ? await db.findById('users', id) : null;
+  const sessions = await db.getAll('sessions');
+  const session = activeToken ? sessions.find((s) => s.token === activeToken) : null;
+  const user = session ? await db.findById('users', session.userId) : null;
   if (!user) throw { message: 'Session expired, please log in again.' };
   return publicUser(user);
 };
 
-const logout = async () => ({ message: 'Logged out' });
+const logout = async () => {
+  const token = await AsyncStorage.getItem('token');
+  if (token) {
+    const sessions = await db.getAll('sessions');
+    await db.setCollection('sessions', sessions.filter((s) => s.token !== token));
+  }
+  return { message: 'Logged out' };
+};
 
 export default { register, login, forgotPassword, googleLogin, getMe, logout };
