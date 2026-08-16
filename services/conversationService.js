@@ -1,5 +1,6 @@
 import * as db from '../data/localDb';
 import { requireCurrentUserId } from './session';
+import { publicUser } from '../utils/publicUser';
 
 const populate = (conversation, myId, usersById) => {
   const otherId = conversation.participants.find((p) => p !== myId) || conversation.participants[0];
@@ -14,9 +15,11 @@ const populate = (conversation, myId, usersById) => {
   };
 };
 
+// Sanitized — the other participant's user record must never carry passwordHash/passwordSalt (or
+// a legacy plaintext password) through to this side of the conversation.
 const usersMap = async () => {
   const users = await db.getAll('users');
-  return new Map(users.map((u) => [u._id, u]));
+  return new Map(users.map((u) => [u._id, publicUser(u)]));
 };
 
 const getConversations = async () => {
