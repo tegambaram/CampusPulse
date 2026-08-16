@@ -1,16 +1,14 @@
 import * as db from '../data/localDb';
 import { requireCurrentUserId } from './session';
 import { clampPage } from '../utils/pagination';
+import { publicUser } from '../utils/publicUser';
 
-const publicUser = (user) => {
-  if (!user) return null;
-  const { passwordHash, passwordSalt, ...rest } = user;
-  return rest;
-};
-
+// Sanitized — a booking/review/post's `fromUser`/`user` field is another user's data attached to
+// someone else's response, so it must never carry passwordHash/passwordSalt (or a legacy plaintext
+// password — see authService.login) through to the caller.
 const usersMap = async () => {
   const users = await db.getAll('users');
-  return new Map(users.map((u) => [u._id, u]));
+  return new Map(users.map((u) => [u._id, publicUser(u)]));
 };
 
 const getUser = async (id) => {
