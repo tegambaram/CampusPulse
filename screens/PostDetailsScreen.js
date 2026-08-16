@@ -103,7 +103,13 @@ export default function PostDetailsScreen({ route, navigation }) {
   };
 
   const handleEdit = () => {
-    navigation.navigate('MainTabs', { screen: 'Create', params: { editPost: rawPost } });
+    // CreatePostScreen pre-fills its image picker from `editPost.image` (singular), but the raw
+    // post record stores it as `images` (array) — pass the shape it actually expects, or the form
+    // opens with no image and silently wipes the existing one on save.
+    navigation.navigate('MainTabs', {
+      screen: 'Create',
+      params: { editPost: { ...rawPost, image: rawPost.images?.[0] || null } },
+    });
   };
 
   const handleDelete = () => {
