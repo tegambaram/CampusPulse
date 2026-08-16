@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import authService from '../services/authService';
-import { disconnectSocket } from '../utils/socketClient';
 
 const AuthContext = createContext(null);
 
@@ -29,7 +28,6 @@ export function AuthProvider({ children }) {
     await AsyncStorage.multiRemove(['token', 'user']);
     setToken(null);
     setUser(null);
-    disconnectSocket();
   };
 
   useEffect(() => {
