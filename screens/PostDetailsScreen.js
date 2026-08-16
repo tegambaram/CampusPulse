@@ -79,14 +79,16 @@ export default function PostDetailsScreen({ route, navigation }) {
       setBooking(true);
       try {
         await bookingService.create({ postId });
+        // See CreatePostScreen's handleSubmit for why this isn't in a `finally`: re-enabling Book
+        // Now the instant the request resolves, before this confirmation is dismissed, would let a
+        // stray extra tap fire a second bookingService.create() while the dialog is still up.
         Alert.alert('Booking requested', `Your request for "${post.title}" has been sent to ${post.user.name}.`, [
-          { text: 'View Bookings', onPress: () => navigation.navigate('Booking') },
-          { text: 'OK', style: 'cancel' },
+          { text: 'View Bookings', onPress: () => { setBooking(false); navigation.navigate('Booking'); } },
+          { text: 'OK', style: 'cancel', onPress: () => setBooking(false) },
         ]);
       } catch (err) {
-        Alert.alert('Could not book', err.message || 'Please try again.');
-      } finally {
         setBooking(false);
+        Alert.alert('Could not book', err.message || 'Please try again.');
       }
     });
   };

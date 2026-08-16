@@ -101,19 +101,23 @@ export default function CreatePostScreen({ navigation, route }) {
 
       if (isEditMode) {
         await postService.updatePost(editPost._id || editPost.id, payload);
+        // Deliberately not resetting `submitting` here: Alert.alert doesn't block, so a `finally`
+        // that always ran would re-enable Submit (with the same still-populated form) the instant
+        // the request resolved — a stray extra tap while this confirmation is still up would
+        // resubmit and create a duplicate post before the user ever dismisses the dialog. Only
+        // reset it once the user actually acknowledges success, or on error (so they can retry).
         Alert.alert('Post updated!', 'Your changes are now live.', [
-          { text: 'OK', onPress: () => navigation.goBack() },
+          { text: 'OK', onPress: () => { setSubmitting(false); navigation.goBack(); } },
         ]);
       } else {
         await postService.createPost(payload);
         Alert.alert('Post created!', 'Your post is now live for the campus to see.', [
-          { text: 'OK', onPress: () => { resetForm(); navigation.navigate('Home'); } },
+          { text: 'OK', onPress: () => { setSubmitting(false); resetForm(); navigation.navigate('Home'); } },
         ]);
       }
     } catch (error) {
-      Alert.alert(isEditMode ? 'Could not save changes' : 'Could not create post', error.message || 'Please try again.');
-    } finally {
       setSubmitting(false);
+      Alert.alert(isEditMode ? 'Could not save changes' : 'Could not create post', error.message || 'Please try again.');
     }
   };
 
