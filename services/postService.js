@@ -6,6 +6,22 @@ const populate = (post, usersById) => ({ ...post, user: usersById.get(post.user)
 // `Number('abc')` is NaN, and NaN silently round-trips to `null` the moment it's JSON-persisted
 // (data/localDb.js's `persist()`), leaving the in-memory cache and stored value disagreeing until
 // the next reload. Validate instead of trusting the cast.
+const TITLE_MAX = 100;
+const DESCRIPTION_MAX = 1000;
+const LOCATION_MAX = 100;
+
+const validateTextFields = ({ title, description, location }) => {
+  if (title !== undefined && title.length > TITLE_MAX) {
+    throw { message: `Title must be ${TITLE_MAX} characters or fewer.` };
+  }
+  if (description !== undefined && description.length > DESCRIPTION_MAX) {
+    throw { message: `Description must be ${DESCRIPTION_MAX} characters or fewer.` };
+  }
+  if (location && location.length > LOCATION_MAX) {
+    throw { message: `Location must be ${LOCATION_MAX} characters or fewer.` };
+  }
+};
+
 const parseCompensationAmount = (value) => {
   if (value === undefined || value === null || value === '') return undefined;
   const amount = Number(value);
@@ -48,6 +64,7 @@ const getPost = async (id) => {
 const createPost = async (payload) => {
   const authorId = await requireCurrentUserId();
   await db.ready();
+  validateTextFields(payload);
   const record = await db.insert('posts', {
     user: authorId,
     type: payload.type,
@@ -73,6 +90,7 @@ const updatePost = async (id, payload) => {
   const existing = await db.findById('posts', id);
   if (!existing) throw { message: 'This post no longer exists.' };
   if (existing.user !== userId) throw { message: 'You can only edit your own posts.' };
+  validateTextFields(payload);
   const patch = { ...payload };
   if (payload.compensationAmount !== undefined) patch.compensationAmount = parseCompensationAmount(payload.compensationAmount);
   if (payload.imageUri !== undefined) {

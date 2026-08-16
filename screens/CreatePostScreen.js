@@ -141,6 +141,7 @@ export default function CreatePostScreen({ navigation, route }) {
           placeholder={postType === 'need' ? 'e.g. Need Scientific Calculator' : 'e.g. Offering Guitar Classes'}
           value={title}
           onChangeText={setTitle}
+          maxLength={100}
         />
         <CustomInput
           label="Description"
@@ -149,6 +150,7 @@ export default function CreatePostScreen({ navigation, route }) {
           value={description}
           onChangeText={setDescription}
           multiline
+          maxLength={1000}
         />
         <SelectField
           label="Category"
@@ -158,7 +160,7 @@ export default function CreatePostScreen({ navigation, route }) {
           options={categories.map((c) => c.name)}
           onSelect={setCategory}
         />
-        <CustomInput label="Location" icon="location-outline" placeholder="e.g. Central Library" value={location} onChangeText={setLocation} />
+        <CustomInput label="Location" icon="location-outline" placeholder="e.g. Central Library" value={location} onChangeText={setLocation} maxLength={100} />
 
         <Text style={styles.label}>Compensation</Text>
         <View style={styles.compRow}>

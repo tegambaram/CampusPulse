@@ -26,9 +26,13 @@ const getUser = async (id) => {
 // server/system-managed and must never be settable through a profile-update payload, even though
 // today's only caller (EditProfileScreen) happens to send a safe subset.
 const EDITABLE_PROFILE_FIELDS = ['name', 'bio', 'department', 'semester', 'skills', 'availability', 'profileImage'];
+const BIO_MAX = 300;
 
 const updateProfile = async (payload) => {
   const myId = await requireCurrentUserId();
+  if (payload.bio !== undefined && payload.bio.length > BIO_MAX) {
+    throw { message: `Bio must be ${BIO_MAX} characters or fewer.` };
+  }
   const patch = {};
   EDITABLE_PROFILE_FIELDS.forEach((field) => {
     if (payload[field] !== undefined) patch[field] = payload[field];
