@@ -1,5 +1,6 @@
 import * as db from '../data/localDb';
 import { requireCurrentUserId } from './session';
+import { publicUser } from '../utils/publicUser';
 
 const populate = (booking, usersById, postsById) => ({
   ...booking,
@@ -8,9 +9,11 @@ const populate = (booking, usersById, postsById) => ({
   provider: usersById.get(booking.provider) || booking.provider,
 });
 
+// Sanitized — requester/provider is another user's data attached to the other party's view of the
+// booking, so it must never carry passwordHash/passwordSalt (or a legacy plaintext password).
 const lookups = async () => {
   const [users, posts] = await Promise.all([db.getAll('users'), db.getAll('posts')]);
-  return { usersById: new Map(users.map((u) => [u._id, u])), postsById: new Map(posts.map((p) => [p._id, p])) };
+  return { usersById: new Map(users.map((u) => [u._id, publicUser(u)])), postsById: new Map(posts.map((p) => [p._id, p])) };
 };
 
 const getMine = async (status) => {

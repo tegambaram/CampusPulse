@@ -2,13 +2,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as db from '../data/localDb';
 import { getCurrentUserId } from './session';
 import { clampPage } from '../utils/pagination';
+import { publicUser } from '../utils/publicUser';
 
 const RECENT_KEY_PREFIX = '@campuspulse/recentSearches/';
 const MAX_RECENT = 6;
 
+// Sanitized — see postService.js's usersMap for why.
 const usersMap = async () => {
   const users = await db.getAll('users');
-  return new Map(users.map((u) => [u._id, u]));
+  return new Map(users.map((u) => [u._id, publicUser(u)]));
 };
 
 const recordRecent = async (q) => {
