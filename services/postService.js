@@ -3,6 +3,18 @@ import { getCurrentUserId, requireCurrentUserId } from './session';
 
 const populate = (post, usersById) => ({ ...post, user: usersById.get(post.user) || post.user });
 
+// `Number('abc')` is NaN, and NaN silently round-trips to `null` the moment it's JSON-persisted
+// (data/localDb.js's `persist()`), leaving the in-memory cache and stored value disagreeing until
+// the next reload. Validate instead of trusting the cast.
+const parseCompensationAmount = (value) => {
+  if (value === undefined || value === null || value === '') return undefined;
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount < 0) {
+    throw { message: 'Compensation amount must be a positive number.' };
+  }
+  return amount;
+};
+
 const usersMap = async () => {
   const users = await db.getAll('users');
   return new Map(users.map((u) => [u._id, u]));
@@ -43,7 +55,7 @@ const createPost = async (payload) => {
     description: payload.description,
     category: payload.category,
     compensationType: payload.compensationType || 'free',
-    compensationAmount: payload.compensationAmount ? Number(payload.compensationAmount) : undefined,
+    compensationAmount: parseCompensationAmount(payload.compensationAmount),
     location: payload.location || '',
     images: payload.imageUri ? [payload.imageUri] : [],
     likedBy: [],
@@ -62,7 +74,7 @@ const updatePost = async (id, payload) => {
   if (!existing) throw { message: 'This post no longer exists.' };
   if (existing.user !== userId) throw { message: 'You can only edit your own posts.' };
   const patch = { ...payload };
-  if (payload.compensationAmount !== undefined) patch.compensationAmount = payload.compensationAmount ? Number(payload.compensationAmount) : undefined;
+  if (payload.compensationAmount !== undefined) patch.compensationAmount = parseCompensationAmount(payload.compensationAmount);
   if (payload.imageUri !== undefined) {
     patch.images = payload.imageUri ? [payload.imageUri] : [];
     delete patch.imageUri;
