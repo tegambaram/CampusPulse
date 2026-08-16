@@ -21,9 +21,19 @@ const getUser = async (id) => {
   return { ...publicUser(user), stats: { postsCount, reviewsCount } };
 };
 
+// Only these fields are user-editable via this endpoint. Everything else on the user record
+// (rating, ratingCount, passwordHash/passwordSalt, collegeEmail, isOnline, ...) is
+// server/system-managed and must never be settable through a profile-update payload, even though
+// today's only caller (EditProfileScreen) happens to send a safe subset.
+const EDITABLE_PROFILE_FIELDS = ['name', 'bio', 'department', 'semester', 'skills', 'availability', 'profileImage'];
+
 const updateProfile = async (payload) => {
   const myId = await requireCurrentUserId();
-  const updated = await db.update('users', myId, payload);
+  const patch = {};
+  EDITABLE_PROFILE_FIELDS.forEach((field) => {
+    if (payload[field] !== undefined) patch[field] = payload[field];
+  });
+  const updated = await db.update('users', myId, patch);
   if (!updated) throw { message: 'User not found.' };
   return publicUser(updated);
 };
