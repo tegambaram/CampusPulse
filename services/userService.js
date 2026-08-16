@@ -3,7 +3,7 @@ import { requireCurrentUserId } from './session';
 
 const publicUser = (user) => {
   if (!user) return null;
-  const { password, ...rest } = user;
+  const { passwordHash, passwordSalt, ...rest } = user;
   return rest;
 };
 
