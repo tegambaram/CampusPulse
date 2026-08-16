@@ -64,17 +64,16 @@ const startConversation = async (userId) => {
   const myId = await requireCurrentUserId();
   if (userId === myId) throw { message: "You can't start a conversation with yourself." };
   await db.ready();
-  const conversations = await db.getAll('conversations');
-  let conversation = conversations.find((c) => c.participants.includes(myId) && c.participants.includes(userId));
-
-  if (!conversation) {
-    conversation = await db.insert('conversations', {
+  const conversation = await db.findOrCreate(
+    'conversations',
+    (c) => c.participants.includes(myId) && c.participants.includes(userId),
+    () => ({
       participants: [myId, userId],
       lastMessage: '',
       lastMessageAt: new Date().toISOString(),
       unreadCount: { [myId]: 0, [userId]: 0 },
-    });
-  }
+    })
+  );
 
   const byId = await usersMap();
   return populate(conversation, myId, byId);
