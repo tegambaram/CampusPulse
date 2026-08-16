@@ -12,9 +12,11 @@ const getNotifications = async (page = 1) => {
 };
 
 const markRead = async (id) => {
-  await requireCurrentUserId();
+  const myId = await requireCurrentUserId();
+  const existing = await db.findById('notifications', id);
+  if (!existing) throw { message: 'Notification not found.' };
+  if (existing.user !== myId) throw { message: 'Notification not found.' };
   const updated = await db.update('notifications', id, { isRead: true });
-  if (!updated) throw { message: 'Notification not found.' };
   return updated;
 };
 

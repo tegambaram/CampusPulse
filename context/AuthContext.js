@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import authService from '../services/authService';
-import { disconnectSocket } from '../utils/socketClient';
 
 const AuthContext = createContext(null);
 
@@ -29,7 +28,6 @@ export function AuthProvider({ children }) {
     await AsyncStorage.multiRemove(['token', 'user']);
     setToken(null);
     setUser(null);
-    disconnectSocket();
   };
 
   useEffect(() => {
@@ -95,7 +93,11 @@ export function AuthProvider({ children }) {
   const updateLocalUser = (patch) => {
     setUser((prev) => {
       const next = { ...prev, ...patch };
-      AsyncStorage.setItem('user', JSON.stringify(next));
+      AsyncStorage.setItem('user', JSON.stringify(next)).catch(() => {
+        // Storage write failed (e.g. device out of space) — in-memory state above still
+        // reflects `next`, so at minimum log rather than fail silently.
+        console.warn('Failed to persist updated user to storage');
+      });
       return next;
     });
   };
