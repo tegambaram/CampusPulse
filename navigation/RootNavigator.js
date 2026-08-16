@@ -1,4 +1,5 @@
 import React from 'react';
+import { Platform } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import SplashScreen from '../screens/SplashScreen';
@@ -24,7 +25,12 @@ export default function RootNavigator() {
       initialRouteName="Splash"
       screenOptions={{
         headerShown: false,
-        animation: 'slide_from_right',
+        // react-native-screens' native-stack slide transition doesn't clean up the outgoing
+        // screen's pointer-events on the web target the way it does on iOS/Android — the old
+        // screen can keep intercepting touches for a moment after the new one is visible, so the
+        // first tap right after a navigation (e.g. Welcome -> Login) silently does nothing and a
+        // second tap is needed. Disable the animation on web only; native platforms are unaffected.
+        animation: Platform.OS === 'web' ? 'none' : 'slide_from_right',
         contentStyle: { backgroundColor: COLORS.background },
       }}
     >
