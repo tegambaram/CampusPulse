@@ -29,18 +29,21 @@ const create = async ({ postId }) => {
   if (!post) throw { message: 'This post no longer exists.' };
   if (post.user === userId) throw { message: "You can't book your own post." };
 
-  const existingBookings = await db.getAll('bookings');
-  const alreadyBooked = existingBookings.some(
-    (b) => b.post === postId && b.requester === userId && b.status === 'upcoming'
-  );
-  if (alreadyBooked) throw { message: "You've already got an upcoming booking for this post." };
-
-  const record = await db.insert('bookings', {
-    post: postId,
-    requester: userId,
-    provider: post.user,
-    status: 'upcoming',
-    scheduledDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+  // The duplicate-booking check and the insert happen inside one write-queue task so two
+  // concurrent booking attempts on the same post can't both pass the check against the same
+  // pre-insert snapshot.
+  const record = await db.insertWith('bookings', (bookings) => {
+    const alreadyBooked = bookings.some(
+      (b) => b.post === postId && b.requester === userId && b.status === 'upcoming'
+    );
+    if (alreadyBooked) throw { message: "You've already got an upcoming booking for this post." };
+    return {
+      post: postId,
+      requester: userId,
+      provider: post.user,
+      status: 'upcoming',
+      scheduledDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    };
   });
   const { usersById, postsById } = await lookups();
   return populate(record, usersById, postsById);
@@ -70,15 +73,16 @@ const addReview = async (id, { rating, comment }) => {
   if (booking.requester !== userId) throw { message: 'Only the requester can review this booking.' };
   if (booking.status !== 'completed') throw { message: 'You can only review completed bookings.' };
 
-  const reviews = await db.getAll('reviews');
-  if (reviews.some((r) => r.booking === id)) throw { message: 'This booking has already been reviewed.' };
-
-  const review = await db.insert('reviews', {
-    booking: id,
-    fromUser: userId,
-    toUser: booking.provider,
-    rating,
-    comment: comment || '',
+  // Same pattern as bookingService.create above: check-and-insert inside one write-queue task.
+  const review = await db.insertWith('reviews', (reviews) => {
+    if (reviews.some((r) => r.booking === id)) throw { message: 'This booking has already been reviewed.' };
+    return {
+      booking: id,
+      fromUser: userId,
+      toUser: booking.provider,
+      rating,
+      comment: comment || '',
+    };
   });
 
   const users = await db.getAll('users');

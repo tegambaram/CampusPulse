@@ -278,6 +278,34 @@ export const insert = (name, doc) => enqueueWrite(async () => {
   return record;
 });
 
+// Like insert(), but for "reject if a duplicate already exists" flows (unique email on register,
+// one upcoming booking per post, one review per booking, ...). `factory` receives the collection's
+// current, queue-fresh array and must return the doc to insert — or throw to reject. Running the
+// existence check *and* the insert inside the same exclusive task closes the race where two
+// concurrent calls both check against the same pre-insert snapshot and both pass.
+export const insertWith = (name, factory) => enqueueWrite(async () => {
+  await load();
+  const doc = factory(cache[name]);
+  const record = { _id: genId(), createdAt: new Date().toISOString(), ...doc };
+  cache[name].push(record);
+  await persist(name);
+  return record;
+});
+
+// For "find the existing one, or create it" flows (Google login's implicit account creation,
+// starting a conversation between two users, ...). Doing the find and the maybe-insert inside one
+// exclusive task closes the race where two concurrent calls both miss the same not-yet-inserted
+// record and each create their own duplicate.
+export const findOrCreate = (name, predicate, factory) => enqueueWrite(async () => {
+  await load();
+  const existing = cache[name].find(predicate);
+  if (existing) return existing;
+  const record = { _id: genId(), createdAt: new Date().toISOString(), ...factory() };
+  cache[name].push(record);
+  await persist(name);
+  return record;
+});
+
 export const update = (name, id, patch) => enqueueWrite(async () => {
   await load();
   const idx = cache[name].findIndex((r) => r._id === id);
