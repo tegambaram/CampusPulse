@@ -17,6 +17,7 @@ export default function CustomInput({
   multiline = false,
   rightElement,
   style,
+  maxLength,
 }) {
   const { colors: COLORS } = useTheme();
   const styles = useMemo(() => createStyles(COLORS), [COLORS]);
@@ -51,6 +52,7 @@ export default function CustomInput({
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
           multiline={multiline}
+          maxLength={maxLength}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           style={[styles.input, multiline && { height: 90, textAlignVertical: 'top' }]}
