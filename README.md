@@ -32,11 +32,10 @@ xpo. 🎓✨
 | 🎨 UI           | React Native Paper, Expo Linear Gradient, Ionicons |
 | 💾 Data Layer   | AsyncStorage (local, self-seeding mock database)   |
 | 🖼️ Media        | Expo Image Picker                                  |
-| 🌓 Theming      | Custom light/dark ThemeContext    
-| 💻 Backend      | Node + Express.js                                  |
+| 🌓 Theming      | Custom light/dark ThemeContext                     |
+| 🔐 Auth         | Salted SHA-256 (expo-crypto) + opaque session tokens |
 
-> 💡 CampusPulse currently runs on a **local-only data layer** — no backend server required. All data (users, posts, bookings, chats) is seeded and persisted locally via AsyncStorage, maki
-ng it easy to run and demo out of the box.
+> 💡 CampusPulse currently runs on a **local-only data layer** — no backend server required. All data (users, posts, bookings, chats) is seeded and persisted locally via AsyncStorage, making it easy to run and demo out of the box. See `INTEGRATION.md` for how the pieces fit together.
 
 ---
 
